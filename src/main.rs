@@ -1,19 +1,31 @@
-use axum::{extract::State, routing::get, Router};
+use axum::{extract::Path, extract::State, response::Html, routing::get, Router};
 use reqwest::StatusCode;
 
 async fn health() -> &'static str {
     "ok"
 }
 
-async fn article(State(client): State<reqwest::Client>) -> Result<String, StatusCode> {
-    fetch_article(&client, "Rust_(programming_language)")
+async fn article(
+    State(client): State<reqwest::Client>,
+    Path(page): Path<String>,
+) -> Result<Html<String>, StatusCode> {
+    fetch_article(&client, &page)
         .await
+        .map(Html)
         .map_err(|_| StatusCode::BAD_GATEWAY)
 }
 
 async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
-    let url = format!("https://en.wikipedia.org/w/rest.php/v1/page/{page}/html");
-    let response = client.get(&url).send().await?.error_for_status()?;
+    let mut url = reqwest::Url::parse("https://en.wikipedia.org/w/rest.php/v1/page/")
+        .expect("Invalid Wikipedia url");
+
+    url.path_segments_mut()
+        .expect("Base URL supports path segments")
+        .pop_if_empty()
+        .push(page)
+        .push("html");
+
+    let response = client.get(url).send().await?.error_for_status()?;
 
     let html = response.text().await?;
     Ok(html)
@@ -33,14 +45,10 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
-        .route("/article", get(article))
-        .with_state(client.clone());
+        .route("/article/{page}", get(article))
+        .with_state(client);
 
-    let html = fetch_article(&client, "Rust_(programming_language)")
-        .await
-        .expect("Failed to fetch article");
     println!("Listening on http://127.0.0.1:3000");
-    println!("Recived {} bytes of HTML", html.len());
 
     axum::serve(listener, app).await.expect("Server failed");
 }
