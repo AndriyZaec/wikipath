@@ -1,7 +1,14 @@
-use axum::{routing::get, Router};
+use axum::{extract::State, routing::get, Router};
+use reqwest::StatusCode;
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn article(State(client): State<reqwest::Client>) -> Result<String, StatusCode> {
+    fetch_article(&client, "Rust_(programming_language)")
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)
 }
 
 async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
@@ -26,6 +33,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/article", get(article))
         .with_state(client.clone());
 
     let html = fetch_article(&client, "Rust_(programming_language)")
