@@ -4,10 +4,16 @@ async fn health() -> &'static str {
     "ok"
 }
 
+async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
+    let url = format!("https://en.wikipedia.org/w/rest.php/v1/page/{page}/html");
+    let response = client.get(&url).send().await?.error_for_status()?;
+
+    let html = response.text().await?;
+    Ok(html)
+}
+
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/health", get(health));
-
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .expect("Failed to bind port 3000");
@@ -18,18 +24,13 @@ async fn main() {
         .build()
         .expect("Failed to create HTTP client");
 
-    let response = client
-        .get("https://en.wikipedia.org/w/rest.php/v1/page/Rust_(programming_language)/html")
-        .send()
-        .await
-        .expect("Failed to request Wikipedia");
+    let app = Router::new()
+        .route("/health", get(health))
+        .with_state(client.clone());
 
-    let html = response
-        .error_for_status()
-        .expect("Wikipedia returned an error status")
-        .text()
+    let html = fetch_article(&client, "Rust_(programming_language)")
         .await
-        .expect("Failed to read response body");
+        .expect("Failed to fetch article");
     println!("Listening on http://127.0.0.1:3000");
     println!("Recived {} bytes of HTML", html.len());
 
