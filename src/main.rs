@@ -12,7 +12,13 @@ async fn article(
     fetch_article(&client, &page)
         .await
         .map(Html)
-        .map_err(|_| StatusCode::BAD_GATEWAY)
+        .map_err(|error| {
+            if error.status() == Some(StatusCode::NOT_FOUND) {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_GATEWAY
+            }
+        })
 }
 
 async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
