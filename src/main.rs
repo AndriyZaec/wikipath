@@ -1,4 +1,5 @@
 use axum::{extract::Path, extract::State, response::Html, routing::get, Router};
+use lol_html::{element, rewrite_str, RewriteStrSettings};
 use reqwest::StatusCode;
 
 async fn health() -> &'static str {
@@ -9,16 +10,16 @@ async fn article(
     State(client): State<reqwest::Client>,
     Path(page): Path<String>,
 ) -> Result<Html<String>, StatusCode> {
-    fetch_article(&client, &page)
-        .await
-        .map(Html)
-        .map_err(|error| {
-            if error.status() == Some(StatusCode::NOT_FOUND) {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::BAD_GATEWAY
-            }
-        })
+    let html = fetch_article(&client, &page).await.map_err(|error| {
+        eprintln!("Failed to fetch article {page}: {error}");
+        if error.status() == Some(StatusCode::NOT_FOUND) {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::BAD_GATEWAY
+        }
+    })?;
+    let html = rewrite_links(&html).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Html(html))
 }
 
 async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
@@ -35,6 +36,27 @@ async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, r
 
     let html = response.text().await?;
     Ok(html)
+}
+
+fn rewrite_links(html: &str) -> Result<String, lol_html::errors::RewritingError> {
+    rewrite_str(
+        html,
+        RewriteStrSettings::new().append_element_content_handler(element!(
+            "a[rel~=\"mw:WikiLink\"]",
+            |el| {
+                if let Some(href) = el.get_attribute("href")
+                    && let Some(local_href) = local_article_link(&href)
+                {
+                    el.set_attribute("href", &local_href)?;
+                }
+                Ok(())
+            }
+        )),
+    )
+}
+
+fn local_article_link(href: &str) -> Option<String> {
+    href.strip_prefix("./").map(|h| format!("/article/{h}"))
 }
 
 #[tokio::main]
