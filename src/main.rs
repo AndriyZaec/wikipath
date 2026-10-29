@@ -44,10 +44,11 @@ fn rewrite_links(html: &str) -> Result<String, lol_html::errors::RewritingError>
         RewriteStrSettings::new().append_element_content_handler(element!(
             "a[rel~=\"mw:WikiLink\"]",
             |el| {
-                if let Some(href) = el.get_attribute("href")
-                    && let Some(local_href) = local_article_link(&href)
-                {
-                    el.set_attribute("href", &local_href)?;
+                if let Some(href) = el.get_attribute("href") {
+                    match local_article_link(&href) {
+                        Some(local_href) => el.set_attribute("href", &local_href)?,
+                        None => el.remove_attribute("href"),
+                    }
                 }
                 Ok(())
             }
@@ -56,7 +57,15 @@ fn rewrite_links(html: &str) -> Result<String, lol_html::errors::RewritingError>
 }
 
 fn local_article_link(href: &str) -> Option<String> {
-    href.strip_prefix("./").map(|h| format!("/article/{h}"))
+    let prefixes = ["Category:", "File:", "Wikipedia:"];
+    href.strip_prefix("./").and_then(|page| {
+        let service_prefix = prefixes.iter().any(|p| page.starts_with(p));
+        if service_prefix {
+            None
+        } else {
+            Some(format!("http://127.0.0.1:3000/article/{page}"))
+        }
+    })
 }
 
 #[tokio::main]
