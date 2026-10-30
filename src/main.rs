@@ -89,3 +89,26 @@ async fn main() {
 
     axum::serve(listener, app).await.expect("Server failed");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::local_article_link;
+
+    #[test]
+    fn category_link_is_rejected() {
+        assert_eq!(local_article_link("./Category:Stars"), None)
+    }
+
+    #[test]
+    fn allowed_article_link() {
+        assert_eq!(
+            local_article_link("./Sun"),
+            Some(String::from("http://127.0.0.1:3000/article/Sun"))
+        );
+    }
+
+    #[test]
+    fn external_link_rejected() {
+        assert_eq!(local_article_link("https://example.com"), None);
+    }
+}
