@@ -1,5 +1,7 @@
-use axum::{extract::Path, extract::State, response::Html, routing::get, Router};
-use lol_html::{element, rewrite_str, RewriteStrSettings};
+use axum::{
+    Router, extract::Path, extract::State, response::Html, routing::get,
+};
+use lol_html::{RewriteStrSettings, element, rewrite_str};
 use reqwest::StatusCode;
 
 async fn health() -> &'static str {
@@ -18,13 +20,18 @@ async fn article(
             StatusCode::BAD_GATEWAY
         }
     })?;
-    let html = rewrite_links(&html).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let html = rewrite_links(&html, &page)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Html(html))
 }
 
-async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, reqwest::Error> {
-    let mut url = reqwest::Url::parse("https://en.wikipedia.org/w/rest.php/v1/page/")
-        .expect("Invalid Wikipedia url");
+async fn fetch_article(
+    client: &reqwest::Client,
+    page: &str,
+) -> Result<String, reqwest::Error> {
+    let mut url =
+        reqwest::Url::parse("https://en.wikipedia.org/w/rest.php/v1/page/")
+            .expect("Invalid Wikipedia url");
 
     url.path_segments_mut()
         .expect("Base URL supports path segments")
@@ -38,15 +45,35 @@ async fn fetch_article(client: &reqwest::Client, page: &str) -> Result<String, r
     Ok(html)
 }
 
-fn rewrite_links(html: &str) -> Result<String, lol_html::errors::RewritingError> {
+fn rewrite_links(
+    html: &str,
+    current_page: &str,
+) -> Result<String, lol_html::errors::RewritingError> {
+    let mut current_url = reqwest::Url::parse("http://127.0.0.1:3000/article/")
+        .expect("Invalid application URL");
+
+    current_url
+        .path_segments_mut()
+        .expect("URL supports path segments")
+        .pop_if_empty()
+        .push(current_page);
+
     rewrite_str(
         html,
         RewriteStrSettings::new().append_element_content_handler(element!(
             "a[rel~=\"mw:WikiLink\"]",
             |el| {
                 if let Some(href) = el.get_attribute("href") {
+                    if let Some(fragment) = href.strip_prefix("#") {
+                        let mut target = current_url.clone();
+                        target.set_fragment(Some(fragment));
+                        el.set_attribute("href", target.as_str())?;
+                        return Ok(());
+                    }
                     match local_article_link(&href) {
-                        Some(local_href) => el.set_attribute("href", &local_href)?,
+                        Some(local_href) => {
+                            el.set_attribute("href", &local_href)?
+                        }
                         None => el.remove_attribute("href"),
                     }
                 }
