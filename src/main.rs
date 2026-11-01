@@ -61,7 +61,7 @@ fn rewrite_links(
     rewrite_str(
         html,
         RewriteStrSettings::new().append_element_content_handler(element!(
-            "a[rel~=\"mw:WikiLink\"]",
+            "a[href]",
             |el| {
                 if let Some(href) = el.get_attribute("href") {
                     if let Some(fragment) = href.strip_prefix("#") {
