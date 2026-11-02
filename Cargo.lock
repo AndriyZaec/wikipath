@@ -1761,6 +1761,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "lol_html",
+ "percent-encoding",
  "reqwest",
  "tokio",
 ]

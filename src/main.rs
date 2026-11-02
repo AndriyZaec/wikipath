@@ -4,6 +4,11 @@ use axum::{
 use lol_html::{RewriteStrSettings, element, rewrite_str};
 use reqwest::StatusCode;
 
+struct FetchedArticle {
+    canonical_page: String,
+    html: String,
+}
+
 async fn health() -> &'static str {
     "ok"
 }
@@ -12,7 +17,7 @@ async fn article(
     State(client): State<reqwest::Client>,
     Path(page): Path<String>,
 ) -> Result<Html<String>, StatusCode> {
-    let html = fetch_article(&client, &page).await.map_err(|error| {
+    let fetched = fetch_article(&client, &page).await.map_err(|error| {
         eprintln!("Failed to fetch article {page}: {error}");
         if error.status() == Some(StatusCode::NOT_FOUND) {
             StatusCode::NOT_FOUND
@@ -20,7 +25,7 @@ async fn article(
             StatusCode::BAD_GATEWAY
         }
     })?;
-    let html = rewrite_links(&html, &page)
+    let html = rewrite_links(&fetched.html, &page)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Html(html))
 }
@@ -28,7 +33,7 @@ async fn article(
 async fn fetch_article(
     client: &reqwest::Client,
     page: &str,
-) -> Result<String, reqwest::Error> {
+) -> Result<FetchedArticle, reqwest::Error> {
     let mut url =
         reqwest::Url::parse("https://en.wikipedia.org/w/rest.php/v1/page/")
             .expect("Invalid Wikipedia url");
@@ -40,16 +45,18 @@ async fn fetch_article(
         .push("html");
 
     let response = client.get(url).send().await?.error_for_status()?;
-    let cononical_page = response
+    let canonical_page = response
         .url()
         .path_segments()
         .and_then(|mut segment| segment.nth_back(1))
         .expect("Wikipedia URL must contain a page title")
         .to_owned();
 
-    println!("Canonical page: {cononical_page}");
     let html = response.text().await?;
-    Ok(html)
+    Ok(FetchedArticle {
+        canonical_page,
+        html,
+    })
 }
 
 fn rewrite_links(
