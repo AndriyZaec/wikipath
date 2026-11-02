@@ -40,7 +40,14 @@ async fn fetch_article(
         .push("html");
 
     let response = client.get(url).send().await?.error_for_status()?;
+    let cononical_page = response
+        .url()
+        .path_segments()
+        .and_then(|mut segment| segment.nth_back(1))
+        .expect("Wikipedia URL must contain a page title")
+        .to_owned();
 
+    println!("Canonical page: {cononical_page}");
     let html = response.text().await?;
     Ok(html)
 }
