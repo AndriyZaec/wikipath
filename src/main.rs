@@ -1,6 +1,5 @@
-use axum::{
-    Router, extract::Path, extract::State, response::Html, routing::get,
-};
+use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::{Router, extract::Path, extract::State, routing::get};
 use lol_html::{RewriteStrSettings, element, rewrite_str};
 use reqwest::StatusCode;
 
@@ -16,7 +15,7 @@ async fn health() -> &'static str {
 async fn article(
     State(client): State<reqwest::Client>,
     Path(page): Path<String>,
-) -> Result<Html<String>, StatusCode> {
+) -> Result<Response, StatusCode> {
     let fetched = fetch_article(&client, &page).await.map_err(|error| {
         eprintln!("Failed to fetch article {page}: {error}");
         if error.status() == Some(StatusCode::NOT_FOUND) {
@@ -25,9 +24,20 @@ async fn article(
             StatusCode::BAD_GATEWAY
         }
     })?;
-    let html = rewrite_links(&fetched.html, &page)
+
+    let canonical_page =
+        percent_encoding::percent_decode_str(&fetched.canonical_page)
+            .decode_utf8()
+            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+
+    if page != canonical_page.as_ref() {
+        let target = format!("/article/{}", fetched.canonical_page);
+        return Ok(Redirect::temporary(&target).into_response());
+    }
+
+    let html = rewrite_links(&fetched.html, canonical_page.as_ref())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Html(html))
+    Ok(Html(html).into_response())
 }
 
 async fn fetch_article(
@@ -51,6 +61,8 @@ async fn fetch_article(
         .and_then(|mut segment| segment.nth_back(1))
         .expect("Wikipedia URL must contain a page title")
         .to_owned();
+
+    println!("Canonical page name: {canonical_page}");
 
     let html = response.text().await?;
     Ok(FetchedArticle {
