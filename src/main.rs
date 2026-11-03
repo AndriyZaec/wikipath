@@ -8,6 +8,24 @@ struct FetchedArticle {
     html: String,
 }
 
+#[derive(Debug)]
+enum FetchedArticleError {
+    Request(reqwest::Error),
+    InvalidTitleEncoding(std::str::Utf8Error),
+}
+
+impl From<reqwest::Error> for FetchedArticleError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::Request(error)
+    }
+}
+
+impl From<std::str::Utf8Error> for FetchedArticleError {
+    fn from(error: std::str::Utf8Error) -> Self {
+        Self::InvalidTitleEncoding(error)
+    }
+}
+
 async fn health() -> &'static str {
     "ok"
 }
@@ -17,25 +35,32 @@ async fn article(
     Path(page): Path<String>,
 ) -> Result<Response, StatusCode> {
     let fetched = fetch_article(&client, &page).await.map_err(|error| {
-        eprintln!("Failed to fetch article {page}: {error}");
-        if error.status() == Some(StatusCode::NOT_FOUND) {
-            StatusCode::NOT_FOUND
-        } else {
-            StatusCode::BAD_GATEWAY
+        eprintln!("Failed to fetch article {page}: {error:?}");
+
+        match error {
+            FetchedArticleError::Request(error)
+                if error.status() == Some(StatusCode::NOT_FOUND) =>
+            {
+                StatusCode::NOT_FOUND
+            }
+            _ => StatusCode::BAD_GATEWAY,
         }
     })?;
 
-    let canonical_page =
-        percent_encoding::percent_decode_str(&fetched.canonical_page)
-            .decode_utf8()
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    if page != fetched.canonical_page {
+        let mut target = reqwest::Url::parse("http://127.0.0.1:3000/article/")
+            .expect("Invalid application URL");
 
-    if page != canonical_page.as_ref() {
-        let target = format!("/article/{}", fetched.canonical_page);
-        return Ok(Redirect::temporary(&target).into_response());
+        target
+            .path_segments_mut()
+            .expect("URL supports path segment")
+            .pop_if_empty()
+            .push(&fetched.canonical_page);
+
+        return Ok(Redirect::temporary(target.as_str()).into_response());
     }
 
-    let html = rewrite_links(&fetched.html, canonical_page.as_ref())
+    let html = rewrite_links(&fetched.html, fetched.canonical_page.as_ref())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Html(html).into_response())
 }
@@ -43,7 +68,7 @@ async fn article(
 async fn fetch_article(
     client: &reqwest::Client,
     page: &str,
-) -> Result<FetchedArticle, reqwest::Error> {
+) -> Result<FetchedArticle, FetchedArticleError> {
     let mut url =
         reqwest::Url::parse("https://en.wikipedia.org/w/rest.php/v1/page/")
             .expect("Invalid Wikipedia url");
@@ -63,6 +88,10 @@ async fn fetch_article(
         .to_owned();
 
     println!("Canonical page name: {canonical_page}");
+
+    let canonical_page = percent_encoding::percent_decode_str(&canonical_page)
+        .decode_utf8()?
+        .into_owned();
 
     let html = response.text().await?;
     Ok(FetchedArticle {
