@@ -26,6 +26,28 @@ impl From<std::str::Utf8Error> for FetchedArticleError {
     }
 }
 
+impl std::fmt::Display for FetchedArticleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Request(error) => {
+                write!(f, "Wikipedia request failed: {error}")
+            }
+            Self::InvalidTitleEncoding(error) => {
+                write!(f, "Invalid Wikipedia title encoding: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for FetchedArticleError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Request(error) => Some(error),
+            Self::InvalidTitleEncoding(error) => Some(error),
+        }
+    }
+}
+
 async fn health() -> &'static str {
     "ok"
 }
@@ -35,7 +57,7 @@ async fn article(
     Path(page): Path<String>,
 ) -> Result<Response, StatusCode> {
     let fetched = fetch_article(&client, &page).await.map_err(|error| {
-        eprintln!("Failed to fetch article {page}: {error:?}");
+        eprintln!("Failed to fetch article {page}: {error}");
 
         match error {
             FetchedArticleError::Request(error)
