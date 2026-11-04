@@ -87,6 +87,12 @@ async fn article(
     Ok(Html(html).into_response())
 }
 
+fn decode_title(encoded: &str) -> Result<String, FetchedArticleError> {
+    Ok(percent_encoding::percent_decode_str(encoded)
+        .decode_utf8()?
+        .into_owned())
+}
+
 async fn fetch_article(
     client: &reqwest::Client,
     page: &str,
@@ -111,10 +117,7 @@ async fn fetch_article(
 
     println!("Canonical page name: {canonical_page}");
 
-    let canonical_page = percent_encoding::percent_decode_str(&canonical_page)
-        .decode_utf8()?
-        .into_owned();
-
+    let canonical_page = decode_title(&canonical_page)?;
     let html = response.text().await?;
     Ok(FetchedArticle {
         canonical_page,
