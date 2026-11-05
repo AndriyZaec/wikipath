@@ -199,6 +199,8 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    use crate::decode_title;
+
     use super::local_article_link;
 
     #[test]
@@ -217,5 +219,11 @@ mod tests {
     #[test]
     fn external_link_rejected() {
         assert_eq!(local_article_link("https://example.com"), None);
+    }
+
+    #[test]
+    fn decodes_encoded_title() {
+        let title = decode_title("C%2B%2B").expect("Valid title should decode");
+        assert_eq!(title, "C++");
     }
 }
