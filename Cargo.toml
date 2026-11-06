@@ -1,11 +1,4 @@
-[package]
-name = "wikipath"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-axum = "0.8.9"
-lol_html = "3.0.3"
-percent-encoding = "2.3.2"
-reqwest = "0.13.5"
-tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net"] }
+[workspace]
+members = ["backend", "frontend"]
+default-members = ["backend"]
+resolver = "3"
