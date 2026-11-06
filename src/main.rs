@@ -199,7 +199,7 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::decode_title;
+    use crate::{FetchedArticleError, decode_title};
 
     use super::local_article_link;
 
@@ -225,5 +225,15 @@ mod tests {
     fn decodes_encoded_title() {
         let title = decode_title("C%2B%2B").expect("Valid title should decode");
         assert_eq!(title, "C++");
+    }
+
+    #[test]
+    fn reject_invalid_utf8_title() {
+        let result = decode_title("%FF");
+
+        assert!(matches!(
+            result,
+            Err(FetchedArticleError::InvalidTitleEncoding(_))
+        ));
     }
 }
