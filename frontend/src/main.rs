@@ -1,29 +1,33 @@
-use core::assert_eq;
-
 use gloo_net::http::Request;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 #[function_component(App)]
 fn app() -> Html {
-    use_effect_with((), |_| {
-        spawn_local(async {
-            let response = Request::get("/api/health")
-                .send()
-                .await
-                .expect("Health request failed");
+    let health = use_state(|| String::from("Checking backennd..."));
 
-            let text = response
-                .text()
-                .await
-                .expect("Failed to read health response");
+    {
+        let health = health.clone();
+        use_effect_with((), move |_| {
+            spawn_local(async move {
+                let response = Request::get("/api/health")
+                    .send()
+                    .await
+                    .expect("Health request failed");
 
-            assert_eq!(text, "ok");
-        })
-    });
+                let text = response
+                    .text()
+                    .await
+                    .expect("Failed to read health response");
+
+                health.set(text);
+            })
+        });
+    }
     html! {
         <main>
             <h1>{"Wikipath"}</h1>
+            <p>{ format!("Backend: {}", &*health) }</p>
             <p>{ "Find your way through Wikipedia" }</p>
         </main>
     }
