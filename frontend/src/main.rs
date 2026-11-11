@@ -18,10 +18,18 @@ fn app() -> Html {
                     }
                 };
 
-                let text = response
-                    .text()
-                    .await
-                    .expect("Failed to read health response");
+                if !response.ok() {
+                    health.set(format!("HTTP error: {}", response.status()));
+                    return;
+                }
+
+                let text = match response.text().await {
+                    Ok(text) => text,
+                    Err(error) => {
+                        health.set(format!("Failed to read response: {error}"));
+                        return;
+                    }
+                };
 
                 health.set(text);
             })
