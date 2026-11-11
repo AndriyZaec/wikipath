@@ -10,10 +10,13 @@ fn app() -> Html {
         let health = health.clone();
         use_effect_with((), move |_| {
             spawn_local(async move {
-                let response = Request::get("/api/health")
-                    .send()
-                    .await
-                    .expect("Health request failed");
+                let response = match Request::get("/api/health").send().await {
+                    Ok(response) => response,
+                    Err(error) => {
+                        health.set(format!("Connection failed: {error}"));
+                        return;
+                    }
+                };
 
                 let text = response
                     .text()
