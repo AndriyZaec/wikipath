@@ -18,6 +18,24 @@ impl std::fmt::Display for HealthState {
     }
 }
 
+async fn request(path: &str) -> Result<String, String> {
+    let response = match Request::get(path).send().await {
+        Ok(response) => response,
+        Err(error) => {
+            return Err(format!("Connection failed: {error}"));
+        }
+    };
+
+    if !response.ok() {
+        return Err(format!("HTTP error: {}", response.status()));
+    }
+
+    match response.text().await {
+        Ok(text) => Ok(text),
+        Err(error) => Err(format!("Failed to read response: {error}")),
+    }
+}
+
 #[function_component(App)]
 fn app() -> Html {
     let health = use_state(|| HealthState::Loading);
@@ -26,35 +44,10 @@ fn app() -> Html {
         let health = health.clone();
         use_effect_with((), move |_| {
             spawn_local(async move {
-                let response = match Request::get("/api/health").send().await {
-                    Ok(response) => response,
-                    Err(error) => {
-                        health.set(HealthState::Failed(format!(
-                            "Connection failed: {error}"
-                        )));
-                        return;
-                    }
-                };
-
-                if !response.ok() {
-                    health.set(HealthState::Failed(format!(
-                        "HTTP error: {}",
-                        response.status()
-                    )));
-                    return;
+                match request("/api/health").await {
+                    Ok(resp) => health.set(HealthState::Ready(resp)),
+                    Err(err) => health.set(HealthState::Failed(err)),
                 }
-
-                let text = match response.text().await {
-                    Ok(text) => text,
-                    Err(error) => {
-                        health.set(HealthState::Failed(format!(
-                            "Failed to read response: {error}"
-                        )));
-                        return;
-                    }
-                };
-
-                health.set(HealthState::Ready(text));
             })
         });
     }
