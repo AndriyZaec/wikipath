@@ -51,11 +51,19 @@ fn app() -> Html {
             })
         });
     }
+    let on_retry = {
+        let health = health.clone();
+
+        Callback::from(move |_event: MouseEvent| {
+            health.set(HealthState::Loading);
+        })
+    };
     html! {
         <main>
             <h1>{"Wikipath"}</h1>
             <p>{ format!("Backend: {}", &*health) }</p>
             <p>{ "Find your way through Wikipedia" }</p>
+            <button onclick={on_retry}>{"Retry"}</button>
         </main>
     }
 }
