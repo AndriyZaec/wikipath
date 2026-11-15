@@ -56,6 +56,13 @@ fn app() -> Html {
 
         Callback::from(move |_event: MouseEvent| {
             health.set(HealthState::Loading);
+            let health = health.clone();
+            spawn_local(async move {
+                match request("/api/health").await {
+                    Ok(resp) => health.set(HealthState::Ready(resp)),
+                    Err(err) => health.set(HealthState::Failed(err)),
+                }
+            });
         })
     };
     html! {
