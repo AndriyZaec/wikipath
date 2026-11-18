@@ -65,12 +65,13 @@ fn app() -> Html {
             });
         })
     };
+    let is_loading = matches!(*health, HealthState::Loading);
     html! {
         <main>
             <h1>{"Wikipath"}</h1>
             <p>{ format!("Backend: {}", &*health) }</p>
             <p>{ "Find your way through Wikipedia" }</p>
-            <button onclick={on_retry}>{"Retry"}</button>
+            <button onclick={on_retry} disabled={is_loading}>{"Retry"}</button>
         </main>
     }
 }
