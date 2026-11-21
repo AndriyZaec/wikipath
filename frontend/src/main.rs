@@ -8,12 +8,31 @@ enum HealthState {
     Failed(String),
 }
 
+enum ArticleState {
+    Loading,
+    Ready(String),
+    Failed(String),
+}
+
 impl std::fmt::Display for HealthState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HealthState::Loading => write!(f, "Loading..."),
             HealthState::Ready(text) => write!(f, "{text}"),
             HealthState::Failed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::fmt::Display for ArticleState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArticleState::Loading => write!(f, "Loading article..."),
+            ArticleState::Ready(html) => {
+                let len = html.len();
+                write!(f, "Article bytes: {len}")
+            }
+            ArticleState::Failed(error) => write!(f, "{error}"),
         }
     }
 }
@@ -39,6 +58,7 @@ async fn request(path: &str) -> Result<String, String> {
 #[function_component(App)]
 fn app() -> Html {
     let health = use_state(|| HealthState::Loading);
+    let article = use_state(|| ArticleState::Loading);
 
     {
         let health = health.clone();
@@ -51,6 +71,19 @@ fn app() -> Html {
             })
         });
     }
+
+    {
+        let article = article.clone();
+        use_effect_with((), move |_| {
+            spawn_local(async move {
+                match request("/api/article/Earth").await {
+                    Ok(html) => article.set(ArticleState::Ready(html)),
+                    Err(err) => article.set(ArticleState::Failed(err)),
+                }
+            });
+        });
+    }
+
     let on_retry = {
         let health = health.clone();
 
@@ -71,6 +104,7 @@ fn app() -> Html {
             <h1>{"Wikipath"}</h1>
             <p>{ format!("Backend: {}", &*health) }</p>
             <p>{ "Find your way through Wikipedia" }</p>
+            <p>{ format!("{}", &*article)}</p>
             <button onclick={on_retry} disabled={is_loading}>{"Retry"}</button>
         </main>
     }
