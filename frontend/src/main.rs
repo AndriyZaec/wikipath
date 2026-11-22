@@ -99,12 +99,28 @@ fn app() -> Html {
         })
     };
     let is_loading = matches!(*health, HealthState::Loading);
+    let article_view = match &*article {
+        ArticleState::Loading => html! {
+            <p>{"Article loading"}</p>
+        },
+        ArticleState::Ready(html) => html! {
+            <iframe
+                srcdoc={html.clone()}
+                sandbox=""
+                title={"Wikipedia article"}
+                style="width: 100%; height: 70vh;">
+            </iframe>
+        },
+        ArticleState::Failed(err) => html! {
+            <p>{format!("Error fetching article: {}", err)}</p>
+        },
+    };
     html! {
         <main>
             <h1>{"Wikipath"}</h1>
             <p>{ format!("Backend: {}", &*health) }</p>
             <p>{ "Find your way through Wikipedia" }</p>
-            <p>{ format!("{}", &*article)}</p>
+            { article_view }
             <button onclick={on_retry} disabled={is_loading}>{"Retry"}</button>
         </main>
     }
