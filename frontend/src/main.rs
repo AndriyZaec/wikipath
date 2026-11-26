@@ -60,6 +60,7 @@ fn app() -> Html {
     let health = use_state(|| HealthState::Loading);
     let article = use_state(|| ArticleState::Loading);
     let article_ref = use_node_ref();
+    let article_title = use_state(String::new);
 
     {
         let health = health.clone();
@@ -99,19 +100,40 @@ fn app() -> Html {
             });
         })
     };
+
+    let on_article_load = {
+        let article_ref = article_ref.clone();
+        let article_title = article_title.clone();
+
+        Callback::from(move |_event: Event| {
+            let iframe = article_ref.cast::<web_sys::HtmlIFrameElement>();
+            let Some(iframe) = iframe else {
+                return;
+            };
+            let Some(content) = iframe.content_document() else {
+                return;
+            };
+            article_title.set(content.title());
+        })
+    };
+
     let is_loading = matches!(*health, HealthState::Loading);
     let article_view = match &*article {
         ArticleState::Loading => html! {
             <p>{"Article loading"}</p>
         },
         ArticleState::Ready(html) => html! {
+            <>
+            <p>{&*article_title}</p>
             <iframe
                 srcdoc={html.clone()}
                 sandbox="allow-same-origin"
                 ref={article_ref}
+                onload={on_article_load}
                 title={"Wikipedia article"}
                 style="width: 100%; height: 70vh;">
             </iframe>
+            </>
         },
         ArticleState::Failed(err) => html! {
             <p>{format!("Error fetching article: {}", err)}</p>

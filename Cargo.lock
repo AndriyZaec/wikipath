@@ -2269,6 +2269,7 @@ version = "0.1.0"
 dependencies = [
  "gloo-net 0.7.0",
  "wasm-bindgen-futures",
+ "web-sys",
  "yew",
 ]
 

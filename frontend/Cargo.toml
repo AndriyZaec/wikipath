@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 gloo-net = "0.7.0"
 wasm-bindgen-futures = "0.4.80"
+web-sys = { version = "0.3.107", features = ["HtmlIFrameElement", "Document"] }
 yew = { version = "0.23.0", features = ["csr"] }
