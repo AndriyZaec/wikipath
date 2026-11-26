@@ -59,6 +59,7 @@ async fn request(path: &str) -> Result<String, String> {
 fn app() -> Html {
     let health = use_state(|| HealthState::Loading);
     let article = use_state(|| ArticleState::Loading);
+    let article_ref = use_node_ref();
 
     {
         let health = health.clone();
@@ -106,7 +107,8 @@ fn app() -> Html {
         ArticleState::Ready(html) => html! {
             <iframe
                 srcdoc={html.clone()}
-                sandbox=""
+                sandbox="allow-same-origin"
+                ref={article_ref}
                 title={"Wikipedia article"}
                 style="width: 100%; height: 70vh;">
             </iframe>
